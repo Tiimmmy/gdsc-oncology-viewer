@@ -248,16 +248,25 @@ def analyze(req, df: pd.DataFrame) -> dict:
     group_tests = _across_group_tests(test, req.min_cell_lines)
 
     # ----- tumour types to expose for plotting -----------------------
+    present_codes = set(test["TCGA_DESC"].unique())
+    missing_tumour_types: list[str] = []
     if req.tumour_types:
-        focus_codes = [c.upper() for c in req.tumour_types]
+        requested = [c.strip().upper() for c in req.tumour_types if c.strip()]
+        focus_codes = [c for c in requested if c in present_codes]
+        missing_tumour_types = [c for c in requested if c not in present_codes]
+        if not focus_codes:
+            raise AnalysisError(
+                f"所选肿瘤类型在 {selection['label']} 的数据中没有记录："
+                + "、".join(requested)
+                + "。请更换肿瘤类型或药物。"
+            )
     else:
         focus_codes = [
             r["tcga_code"]
             for r in test_stats
             if r["sensitivity_rank"] is not None
         ][:MAX_BOX_TUMOUR_TYPES]
-
-    focus_codes = [c for c in focus_codes if c in set(test["TCGA_DESC"])]
+        focus_codes = [c for c in focus_codes if c in present_codes]
 
     # ----- control drug ---------------------------------------------
     control_block = None
@@ -340,6 +349,11 @@ def analyze(req, df: pd.DataFrame) -> dict:
         )
 
     warnings_out = list(getattr(req, "_warnings", []) or [])
+    if missing_tumour_types:
+        warnings_out.append(
+            "以下所选肿瘤类型在该药物 / 靶点 / 通路的数据中没有记录，已忽略："
+            + "、".join(missing_tumour_types)
+        )
     if dataset is None and req.dataset and req.source == "builtin":
         warnings_out.append(f"数据集 “{req.dataset}” 不存在，已使用全部数据。")
 
@@ -350,6 +364,7 @@ def analyze(req, df: pd.DataFrame) -> dict:
         "min_cell_lines": req.min_cell_lines,
         "tumour_stats": test_stats,
         "focus_codes": focus_codes,
+        "missing_tumour_types": missing_tumour_types,
         "box_summary": box_summary,
         "group_difference_tests": group_tests,
         "comparison": comparison,
