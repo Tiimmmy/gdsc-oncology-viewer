@@ -1,0 +1,16 @@
+# data — large bulk-download files and derived cache
+data/*.xlsx
+data/*.parquet
+
+# python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# node
+frontend/node_modules/
+frontend/dist/
+
+# misc
+.DS_Store
+*.log
